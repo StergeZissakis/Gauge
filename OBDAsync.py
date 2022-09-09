@@ -20,7 +20,7 @@ class OBDAsyncConnector:
 
     def connect(self):
         if self.port:
-            self.obdConnection = obd.Async(self.port)
+            self.obdConnection = obd.Async(portstr=self.port, baudrate=115200)
         else:
             syslog.syslog(syslog.LOG_ERR, 'connect called with no port')
 
