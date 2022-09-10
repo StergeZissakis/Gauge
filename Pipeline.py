@@ -23,17 +23,21 @@ class QJob(Job): # a Job with a response
 
 class CommandDispatcher(Thread): # pops off its internal thread safe q into the OBD query
     q = queue.Queue()
+    connector = None
     obdConnection = None
     responseQ = None
 
     def __init__(self, connection, consumer):
         super(CommandDispatcher, self).__init__()
+        self.connector = connection
         self.obdConnection = connection.getConnection()
         self.responseQ = consumer
 
     def run(self):
         while True:
             qJob = self.q.get()
+            while self.connector.isConnected() == False:
+                self.connector.reconnect()
             qJob.response = self.obdConnection.query(qJob.gauge.obdCommand)
             self.responseQ.push(qJob)
 
@@ -58,7 +62,7 @@ class ResponseQ(Thread): # queus up responses from CommnadDispatch: consumer
             if resp and resp.value is not None and resp.value.magnitude is not None:
                 qJob.gauge.processReading(resp)
             else:
-                syslog.syslog(syslog.LOG_DBG, 'ResponseQ: OBD Command [' + qJob.obdCommand + '] is unreadable')
+                syslog.syslog(syslog.LOG_INFO, 'ResponseQ: OBD Command [' + str(qJob.gauge.obdCommand) + '] is unreadable')
                 
 
 class TimedJobList(Thread): # a group of job at a specific timeout

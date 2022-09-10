@@ -17,23 +17,11 @@ class Connector:
             else:
                 syslog.syslog(syslog.LOG_ERR, 'port not found in connector.json')
 
-    def connect(self):
-        obdConnection = obd
-
     def getPort(self):
         return self.port
 
     def getConnection(self):
         return self.obdConnection
-
-    def isConnectedToELM(self): # connected to ELM
-        return self.obdConnection.status() == OBDStatus.ELM_CONNECTED
-
-    def isIngitionOff(self):    # connected to OBD only
-        return self.obdConnection.status() == OBDStatus.OBD_CONNECTED
-
-    def isIngitionOn(self):     # fully connected
-        return self.obdConnection.status() == OBDStatus.CAR_CONNECTED
 
     def isConnected(self): # same as above
         return self.obdConnection.is_connected()
@@ -44,8 +32,13 @@ class Connector:
 class OBDConnector(Connector):
     def connect(self):
         if self.port:
-            self.obdConnection = obd.OBD(portstr=self.port)
-            return self.obdConnection is not None
+            self.obdConnection = obd.OBD(self.port)
+            return self.isConnected()
         else:
             syslog.syslog(syslog.LOG_ERR, 'connect called with no port')
             return False
+
+    def reconnect(self):
+        if self.isConnected():
+            self.disconnect()
+        return self.connect()
