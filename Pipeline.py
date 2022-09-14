@@ -4,22 +4,16 @@ from threading import Thread, Lock
 import time
 import copy
 import syslog
+import copy
+from pprint import pprint
 
 class Job: # an OBD command and the response processor
     gauge = None
-
-    def __init__(self):
-        pass 
-
-    def __init___(self, gauge):
-        self.gauge = gauge
-
-
-class QJob(Job): # a Job with a response
     response = None
 
-    def __init__(self, job):
-        self.gauge = job.gauge
+    def __init__(self, gauge):
+        self.gauge = gauge
+
 
 class CommandDispatcher(Thread): # pops off its internal thread safe q into the OBD query
     q = queue.Queue()
@@ -27,23 +21,22 @@ class CommandDispatcher(Thread): # pops off its internal thread safe q into the 
     obdConnection = None
     responseQ = None
 
-    def __init__(self, connection, consumer):
+    def __init__(self, connector, consumer):
         super(CommandDispatcher, self).__init__()
-        self.connector = connection
-        self.obdConnection = connection.getConnection()
+        self.connector = connector
+        self.obdConnection = connector.obdConnection
         self.responseQ = consumer
 
     def run(self):
         while True:
-            qJob = self.q.get()
             while self.connector.isConnected() == False:
                 self.connector.reconnect()
-            qJob.response = self.obdConnection.query(qJob.gauge.obdCommand)
-            self.responseQ.push(qJob)
+            job = self.q.get()
+            job.response = self.obdConnection.query(job.gauge.obdCommand)
+            self.responseQ.push(job)
 
     def dispatch(self, job):
-        qJob = QJob(job)
-        self.q.put(qJob)
+        self.q.put(job)
 
 
 class ResponseQ(Thread): # queus up responses from CommnadDispatch: consumer
@@ -52,17 +45,17 @@ class ResponseQ(Thread): # queus up responses from CommnadDispatch: consumer
     def __init__(self):
         super(ResponseQ, self).__init__()
 
-    def push(self, qJob):
-        self.q.put(qJob)
+    def push(self, job):
+        self.q.put(job)
 
     def run(self):
         while True:
-            qJob = self.q.get()
-            resp = qJob.response
+            job = self.q.get()
+            resp = job.response
             if resp and resp.value is not None and resp.value.magnitude is not None:
-                qJob.gauge.processReading(resp)
+                job.gauge.processReading(resp)
             else:
-                syslog.syslog(syslog.LOG_INFO, 'ResponseQ: OBD Command [' + str(qJob.gauge.obdCommand) + '] is unreadable')
+                syslog.syslog(syslog.LOG_INFO, 'ResponseQ: OBD Command [' + str(job.gauge.obdCommand) + '] is unreadable')
                 
 
 class TimedJobList(Thread): # a group of job at a specific timeout
@@ -87,10 +80,9 @@ class TimedJobList(Thread): # a group of job at a specific timeout
     def run(self):
         sleepTime = self.timeout / 1000
         while True:
-            for job in self.jobQ:
-                with self.lock:
-                    self.jobDispatcher.dispatch(job)
             time.sleep(sleepTime)
+            for job in self.jobQ:
+                self.jobDispatcher.dispatch(job)
 
 
 class TimedJobManager: # registry of TimeJobLists
@@ -107,4 +99,4 @@ class TimedJobManager: # registry of TimeJobLists
 
     def unwatch(self, timeout, job):
         if timeout in self.registry.keys():
-            self.registry.deregsiter(job)
+            self.registry[timeout].deregister(job)

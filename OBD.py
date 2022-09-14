@@ -20,9 +20,6 @@ class Connector:
     def getPort(self):
         return self.port
 
-    def getConnection(self):
-        return self.obdConnection
-
     def isConnected(self): # same as above
         return self.obdConnection.is_connected()
     
@@ -33,6 +30,7 @@ class OBDConnector(Connector):
     def connect(self):
         if self.port:
             self.obdConnection = obd.OBD(self.port)
+            #obd.logger.setLevel(obd.logging.DEBUG)
             return self.isConnected()
         else:
             syslog.syslog(syslog.LOG_ERR, 'connect called with no port')

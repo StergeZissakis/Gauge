@@ -1,10 +1,8 @@
 import obd
 
-connection = obd.OBD("/dev/pts/5")
+connection = obd.OBD("/dev/pts/6")
 
-cmd = obd.commands.SPEED
-
-response = connection.query(cmd)
-
-print(response.value)
-print(response.value.to("mph"))
+cmd = obd.commands.RPM
+while True:
+    response = connection.query(cmd)
+    print(response.value.magnitude)

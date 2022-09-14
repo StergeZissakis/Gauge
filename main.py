@@ -1,37 +1,50 @@
+import sys
 import syslog
 import time
-from OBD import *
+from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout
 from Gauge import *
-import time
-import panel as pn
+from OBD import *
 from Pipeline import *
-pn.extension('echarts')
+import signal
 
-obdConnection = OBDConnector()
-while not obdConnection.connect():
-    syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector failed to connect')
-    time.sleep(1)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-rpmGauge = GaugeRPM()
-klmGauge = GaugeSpeed()
+if __name__ == "__main__":
+	app = QApplication(sys.argv)
 
-row = pn.Row(klmGauge.gaugeUI, rpmGauge.gaugeUI)
-gaugeBox = pn.WidgetBox(row)
-gaugeBox.servable()
+	w = QWidget()
+	w.resize(1024,768)
+	w.setWindowTitle("Gauge")
 
-while not obdConnection.isConnected():
-    syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector not established for car. Retring')
-    time.sleep(1)
+	obdConnection = OBDConnector()
+	while not obdConnection.connect():
+		syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector failed to connect')
+		time.sleep(1)
+	
+	rpmGauge = GaugeRPM()
+	klmGauge = GaugeSpeed()
+	
+	grid = QGridLayout(w)
 
-responsesQueue = ResponseQ()
-responsesQueue.start()
+	grid.addWidget(klmGauge.gaugeUI, 0, 0)
+	grid.addWidget(rpmGauge.gaugeUI, 0, 1)
+	
+	while not obdConnection.isConnected():
+		syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector not established for car. Retring')
+		time.sleep(1)
+	
+	responsesQueue = ResponseQ()
+	responsesQueue.start()
+	
+	obdDispatcher = CommandDispatcher(obdConnection, responsesQueue)
+	obdDispatcher.start()
+	
+	jobManager = TimedJobManager()
+	
+	rpmJob = rpmGauge.toJob()
+	jobManager.watch(rpmGauge.frequency, rpmJob, obdDispatcher)  
+	klmJob = klmGauge.toJob()
+	jobManager.watch(klmGauge.frequency, klmJob, obdDispatcher)  
 
-obdDispatcher = CommandDispatcher(obdConnection, responsesQueue)
-obdDispatcher.start()
-
-jobManager = TimedJobManager()
-
-rpmJob = GaugeToJob(rpmGauge)
-jobManager.watch(rpmGauge.frequency, rpmJob, obdDispatcher)  
-klmJob = GaugeToJob(klmGauge)
-jobManager.watch(klmGauge.frequency, klmJob, obdDispatcher)  
+	w.show()
+	sys.exit(app.exec_())

@@ -1,7 +1,6 @@
 import obd
 from Pipeline import Job
-import panel as pn
-pn.extension('echarts')
+from  analoggaugewidget import *
 
 class Gauge:
     obdCommand = None
@@ -14,24 +13,29 @@ class Gauge:
 
     def processReading(self, reading):
         val = reading.value.magnitude
-        self.gaugeUI.value = val
+        #self.gaugeUI.value = val
+        self.gaugeUI.update_value(val)
 
-def GaugeToJob(gauge):
-    ret = Job()
-    ret.gauge = gauge
-    return ret
-
+    def toJob(self):
+        return Job(self)
 
 class GaugeRPM(Gauge):
 
     def __init__(self):
         super(GaugeRPM, self).__init__(obd.commands.RPM, 100)
-        self.gaugeUI = pn.indicators.Gauge(name='RPM', value=0, bounds=(0, 9000))
+        self.gaugeUI = AnalogGaugeWidget()
+        self.gaugeUI.set_MaxValue(6000)
+        self.gaugeUI.set_enable_ScaleText(True)
+        self.gaugeUI.set_enable_value_text(True)
+        self.gaugeUI.setMouseTracking(False)
 
 
 class GaugeSpeed(Gauge):
 
     def __init__(self):
-        super(GaugeSpeed, self).__init__(obd.commands.SPEED, 200)
-        self.gaugeUI = pn.indicators.Gauge(name='klmh', value=0, bounds=(0, 220))
-
+        super(GaugeSpeed, self).__init__(obd.commands.SPEED, 100)
+        self.gaugeUI = AnalogGaugeWidget()
+        self.gaugeUI.set_MaxValue(280)
+        self.gaugeUI.set_enable_ScaleText(True)
+        self.gaugeUI.set_enable_value_text(True)
+        self.gaugeUI.setMouseTracking(False)
