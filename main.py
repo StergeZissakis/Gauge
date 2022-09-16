@@ -2,13 +2,11 @@ import os
 import sys
 import syslog
 import time
+import socket
 from Gauge import *
 from OBD import *
 from Pipeline import *
 from threading import Thread, Lock
-
-OUTGOING_FIFO_NAME="gauge2gui"
-INCOMING_FIFO_NAME="gui2gauge"
 
 if __name__ == "__main__":
     # Connect to OBD2 device
@@ -29,44 +27,31 @@ if __name__ == "__main__":
     jobManager = TimedJobManager()
 
     #Set up IPC
-    jobs = dict
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 5656))
+    outSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    GaugeModule = __import__("Gauge")
 
-    out_fs = None
-    in_fs = None
+    while True:
+        packet = ""
+        char = sock.recv(1)
+        while char != '\n':
+            packet += str(char)
+            char = sock.recv(1)
+            print(char)
+        
+        print(packet)
+        cmd, freq = packet.split(':')
+        action = cmd[0]
+        cmd = cmd[1:-1]
 
-    try:
-        os.mkfifo(OUTGOING_FIFO_NAME)
-        os.mkfifo(INCOMING_FIFO_NAME)
-        try:
-            out_fs = os.open(OUTGOING_FIFO_NAME, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
-            in_fs = os.open(INCOMING_FIFO_NAME, os.O_RDONLY, os.O_CREAT)
+        gaugeClassName = "Gauge" + cmd
+        gaugeClass = getattr(GaugeModule, gaugeClassName)
+        gaugeObj = gaugeClass(freq, outSock) # construct a gauge object
+        gaugeJob = gaugeObj.toJob() #convert it to a job object
+        if action == "+":
+            jobManager.watch(gaugeObj.frequency, gaugeJob, obdDispatcher)  
+        elif action == "-":
+            jobManager.unwatch(freq, gaugeObj.obdCommand)
 
-            GaugeModule = __import__("Gauge")
 
-            for packet in in_fs:
-                cmd, freq = packet.split(':')
-                action = cmd[0]
-                cmd = cmd[1, -1]
-
-                gaugeClassName = "Gauge" + cmd
-                gaugeClass = getattr(GaugeModule, gaugeClassName)
-                gaugeObj = gaugeClass(freq, out_fs) # construct a gauge object
-                gaugeJob = gaugeObj.toJob() #convert it to a job object
-                if action == "+":
-                    jobManager.watch(gaugeObj.frequency, gaugeJob, obdDispatcher)  
-
-                elif action == "-":
-                    jobManager.unwatch(freq, gaugeObj.obdCommand)
-
-        finally:
-            if out_fs is not None:
-                os.close(out_fs)
-            if in_fs is not None:
-                os.close(in_fs)
-
-    finally:
-        os.remove(OUTGOING_FIFO_NAME)
-        os.remove(INCOMING_FIFO_NAME)
-    
-
-threading.join()
