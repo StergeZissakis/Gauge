@@ -1,41 +1,37 @@
 import obd
 from Pipeline import Job
-from  analoggaugewidget import *
 
 class Gauge:
     obdCommand = None
     gaugeUI = None
     frequency = None
+    tag = None
+    ipcPipe = None
 
-    def __init__(self, command, freq):
+    def __init__(self, command, freq, tag, pipe):
         self.obdCommand = command
         self.frequency = freq
+        self.teg = tag
+        self.ipcPipe = pipe
+
+    def getValue(self, reading):
+        return int(reading.value.magnitude)
 
     def processReading(self, reading):
-        val = reading.value.magnitude
-        #self.gaugeUI.value = val
-        self.gaugeUI.update_value(val)
+        packet = tag + ":" + self.getValue(reading) + '\n'
+        self,ipcPipe.write(packet)
+
 
     def toJob(self):
         return Job(self)
 
 class GaugeRPM(Gauge):
 
-    def __init__(self):
-        super(GaugeRPM, self).__init__(obd.commands.RPM, 100)
-        self.gaugeUI = AnalogGaugeWidget()
-        self.gaugeUI.set_MaxValue(6000)
-        self.gaugeUI.set_enable_ScaleText(True)
-        self.gaugeUI.set_enable_value_text(True)
-        self.gaugeUI.setMouseTracking(False)
+    def __init__(self, freq, pipe):
+        super(GaugeRPM, self).__init__(obd.commands.RPM, freq, "RPM", pipe)
 
 
-class GaugeSpeed(Gauge):
+class GaugeKLM(Gauge):
 
-    def __init__(self):
-        super(GaugeSpeed, self).__init__(obd.commands.SPEED, 100)
-        self.gaugeUI = AnalogGaugeWidget()
-        self.gaugeUI.set_MaxValue(280)
-        self.gaugeUI.set_enable_ScaleText(True)
-        self.gaugeUI.set_enable_value_text(True)
-        self.gaugeUI.setMouseTracking(False)
+    def __init__(self, freq, pipe):
+        super(GaugeKLM, self).__init__(obd.commands.SPEED, freq, "KLM", pipe)

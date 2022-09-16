@@ -73,9 +73,12 @@ class TimedJobList(Thread): # a group of job at a specific timeout
         with self.lock:
             self.jobQ.append(job)
 
-    def deregister(self, job):
+    def deregister(self, command):
         with self.lock:
-            self.jobQ.remove(job)
+            for job in self.jobQ:
+                if job.obdCommand == command:
+                    self.jobQ.remove(job)
+                    break
 
     def run(self):
         sleepTime = self.timeout / 1000
@@ -97,6 +100,6 @@ class TimedJobManager: # registry of TimeJobLists
             self.registry[timeout] = tjl
             tjl.start()
 
-    def unwatch(self, timeout, job):
+    def unwatch(self, timeout, command):
         if timeout in self.registry.keys():
-            self.registry[timeout].deregister(job)
+            self.registry[timeout].deregister(command)
