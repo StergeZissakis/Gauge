@@ -6,45 +6,41 @@ from Gauge import *
 from OBD import *
 from Pipeline import *
 import signal
+from dash import Dash, html, dcc, Input, Output
+import dash_daq as daq
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
+app = Dash(__name__)
+
+obdConnection = OBDConnector()
+while not obdConnection.connect():
+	syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector failed to connect')
+	time.sleep(1)
+
+rpmGauge = GaugeRPM()
+klmGauge = GaugeSpeed()
+
+app.layout = html.Div(children=[html.Div([rpmGauge.gaugeUI]),html.Div([klmGauge.gaugeUI])])
+
+
+while not obdConnection.isConnected():
+	syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector not established for car. Retring')
+	time.sleep(1)
+
+responsesQueue = ResponseQ()
+responsesQueue.start()
+
+obdDispatcher = CommandDispatcher(obdConnection, responsesQueue)
+obdDispatcher.start()
+
+jobManager = TimedJobManager()
+
+rpmJob = rpmGauge.toJob()
+jobManager.watch(rpmGauge.frequency, rpmJob, obdDispatcher)  
+klmJob = klmGauge.toJob()
+jobManager.watch(klmGauge.frequency, klmJob, obdDispatcher)  
+
+
 if __name__ == "__main__":
-	app = QApplication(sys.argv)
-
-	w = QWidget()
-	w.resize(1024,768)
-	w.setWindowTitle("Gauge")
-
-	obdConnection = OBDConnector()
-	while not obdConnection.connect():
-		syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector failed to connect')
-		time.sleep(1)
-	
-	rpmGauge = GaugeRPM()
-	klmGauge = GaugeSpeed()
-	
-	grid = QGridLayout(w)
-
-	grid.addWidget(klmGauge.gaugeUI, 0, 0)
-	grid.addWidget(rpmGauge.gaugeUI, 0, 1)
-	
-	while not obdConnection.isConnected():
-		syslog.syslog(syslog.LOG_ERR, 'Main: OBD Connector not established for car. Retring')
-		time.sleep(1)
-	
-	responsesQueue = ResponseQ()
-	responsesQueue.start()
-	
-	obdDispatcher = CommandDispatcher(obdConnection, responsesQueue)
-	obdDispatcher.start()
-	
-	jobManager = TimedJobManager()
-	
-	rpmJob = rpmGauge.toJob()
-	jobManager.watch(rpmGauge.frequency, rpmJob, obdDispatcher)  
-	klmJob = klmGauge.toJob()
-	jobManager.watch(klmGauge.frequency, klmJob, obdDispatcher)  
-
-	w.show()
-	sys.exit(app.exec_())
+    app.run_server(debug=True)
