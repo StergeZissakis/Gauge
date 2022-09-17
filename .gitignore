@@ -133,3 +133,8 @@ dmypy.json
 
 #Vim temp files
 *.swp
+
+#Python venv
+bin/*
+lib*
+*.cfg

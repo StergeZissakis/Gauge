@@ -10,7 +10,7 @@ class Connector:
         self.port = port
 
     def __init__(self):
-        with open('config/connector.json') as cj:
+        with open('../config/connector.json') as cj:
             configData = json.load(cj)
             if configData['port']:
                 self.port = configData['port']
